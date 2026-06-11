@@ -1,14 +1,14 @@
 import Link from "next/link";
 import {
   dbConfigured, productById, snapshotsForSku, latestRunId, listingsForSku, reportsForRun,
-  type ListingRow,
+  blockedForSku, type ListingRow,
 } from "@/lib/dashboard";
 import {
   classifyListings, extractSignature, groupKeyOf, groupLabelOf, typeBucket, TYPE_BUCKET_LABEL,
 } from "@/lib/catalog";
 import { SetupBanner } from "@/app/_components/SetupBanner";
 import { PriceChart } from "@/app/_components/PriceChart";
-import { Listings, type ViewGroup, type ViewListing } from "./_Listings";
+import { Listings, BlockedList, type ViewGroup, type ViewListing } from "./_Listings";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +85,7 @@ export default async function ProductPage({ params }: { params: Promise<{ sku: s
   const listings = runId ? await listingsForSku(runId, sku) : [];
   const reports = runId ? await reportsForRun(runId) : [];
   const report = reports.find((r) => r.sku_id === sku);
+  const blocked = await blockedForSku(sku);
   const groups = buildGroups(product, listings);
 
   return (
@@ -132,6 +133,8 @@ export default async function ProductPage({ params }: { params: Promise<{ sku: s
           <p className="text-sm text-slate-400">실행 기록이 없습니다.</p>
         )}
       </div>
+
+      <BlockedList rows={blocked} skuId={sku} />
     </main>
   );
 }

@@ -6,14 +6,21 @@ import { MyProduct, NaverItem, NaverListingRow } from "./types";
 export interface CollectResult {
   listings: NaverListingRow[]; // 필터 통과 + dedup (최저가 유지)
   rejected: number;
+  blocked: number; // 사용자 차단 목록으로 건너뛴 건수
   apiCalls: number;
 }
 
-// SKU 하나에 대해 search_keywords × (asc+sim) 수집 → 필터 → productId dedup(최저가 유지)
-export async function collectForSku(sku: MyProduct, runId: string): Promise<CollectResult> {
+// SKU 하나에 대해 search_keywords × (asc+sim) 수집 → 필터 → productId dedup(최저가 유지).
+// blockedPids: 사용자가 삭제(차단)한 네이버 상품 ID — 수집 자체를 건너뜀.
+export async function collectForSku(
+  sku: MyProduct,
+  runId: string,
+  blockedPids: Set<string> = new Set(),
+): Promise<CollectResult> {
   const cfg = configForProduct(sku);
   const byPid = new Map<string, NaverListingRow>();
   let rejected = 0;
+  let blocked = 0;
   let apiCalls = 0;
 
   const keywords = sku.search_keywords.length ? sku.search_keywords : [sku.name];
@@ -31,6 +38,10 @@ export async function collectForSku(sku: MyProduct, runId: string): Promise<Coll
           continue;
         }
         const pid = it.productId || it.link;
+        if (blockedPids.has(pid)) {
+          blocked++;
+          continue;
+        }
         const existing = byPid.get(pid);
         if (!existing || price < (existing._price ?? Infinity)) {
           byPid.set(pid, toRow(it, title, price, sku.sku_id, runId, kw));
@@ -38,7 +49,7 @@ export async function collectForSku(sku: MyProduct, runId: string): Promise<Coll
       }
     }
   }
-  return { listings: [...byPid.values()], rejected, apiCalls };
+  return { listings: [...byPid.values()], rejected, blocked, apiCalls };
 }
 
 function toRow(
@@ -58,6 +69,8 @@ function toRow(
     hprice: it.hprice ? parseInt(it.hprice, 10) || null : null,
     mall_name: it.mallName ?? "",
     product_id: it.productId ?? "",
+    image: it.image || null,
+    link: it.link || null,
     product_type: it.productType ?? "",
     brand: it.brand ?? "",
     maker: it.maker ?? "",

@@ -38,7 +38,9 @@ Vercel Cron(월 09:00 KST) → /api/cron/scan (오케스트레이터, enqueue만
 - `layout.tsx` + `_components/Nav.tsx` — 공용 상단 내비(현재 경로 강조), 라이트 테마 고정, 푸터에 BUILD_ID.
 - `/` — 요약 카드(품목/마진침해/시세급락/평균격차) + 격차 테이블.
 - `/products` — CRUD 전면 개편: 검색 필터, 인라인 활성 토글, 복제(코드 자동 재생성), 마진 컬럼. 폼은 **품명/매입가/판매가/마진율/검색어만** (SKU·인치·카테고리·규격 필드 제거 — 자동 인식). **"검색어 테스트(라이브)"** = 저장 전 네이버 실검색(키워드당 1페이지)→필터→토큰매칭→분류 통과량·그룹 분포·시세 미리보기 (`actions.ts testSearchKeywords`). puppeteer CRUD 실측 스크립트 `scripts/verify-ui-crud.cjs` (6-4-url-list의 puppeteer 재사용).
-- `/product/[sku]` — 수집 표본을 **다나와식 그룹 아코디언**으로 표시: 그룹별 최저/중앙값/반영수, "내 규격" 배지, productType 배지(가격비교/일반/중고), 제외 사유 칩, 표본 삭제→즉시 재계산.
+- `/product/[sku]` — 수집 표본을 **다나와식 그룹 아코디언**으로 표시: 그룹별 최저/중앙값/반영수, "내 규격" 배지, productType 배지(가격비교/일반/중고), 제외 사유 칩. **행마다 썸네일**, 행 클릭 시 **인라인 상세**(큰 이미지+판매처+신뢰도, 사이트 이동 없음). 표본 삭제 = **영구 차단**(`naver_blocked_listings`, UNIQUE(sku_id,product_id)) → 다음 스캔의 수집 단계에서 product_id 스킵 + 즉시 재계산. 하단 "차단된 상품" 섹션에서 해제 가능.
+- 대시보드·실행이력에 **▶ 수동 스캔** 버튼 (`startScan` 서버 액션 — cron과 동일 오케스트레이션).
+- **마이그레이션은 exec_sql RPC로 직접 적용 가능**: 이 Supabase 프로젝트에 `exec_sql(sql text)` 함수가 이미 존재 → `POST /rest/v1/rpc/exec_sql` (service_role)로 DDL 실행됨. 0003(차단), 0004(image/link 컬럼) 이렇게 적용 완료.
 - `scripts/recompute-latest.ts` — 최신 run 전 SKU를 현재 알고리즘으로 재계산 (`node --env-file=.env.local --import tsx scripts/recompute-latest.ts`).
 
 ## DB (전용 Supabase 프로젝트 umakukswpneejlcmietc, RLS anon 차단, service_role 전용)

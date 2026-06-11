@@ -40,6 +40,8 @@ export interface NaverListingRow {
   hprice: number | null;
   mall_name: string;
   product_id: string;
+  image: string | null; // 썸네일 (삭제 전 상품 확인용)
+  link: string | null; // 네이버 상품 페이지
   product_type: string;
   brand: string;
   maker: string;

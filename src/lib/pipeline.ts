@@ -5,7 +5,7 @@ import { MATCH_CONFIDENCE_THRESHOLD } from "./config";
 import { analyze } from "./pricing";
 import {
   loadProductChunk, saveListings, saveMatches, saveSnapshot, saveReport,
-  prevSnapshotMedian, incrementRunProgress,
+  prevSnapshotMedian, incrementRunProgress, loadBlockedPids,
 } from "./db";
 
 // 한 chunk(SKU 목록)를 처리: 수집→필터→매칭→분석→영속화. 멱등(upsert).
@@ -17,7 +17,8 @@ export async function processChunk(runId: string, skuIds: string[]) {
 
   for (const sku of products) {
     try {
-      const { listings, apiCalls: calls } = await collectForSku(sku, runId);
+      const blockedPids = await loadBlockedPids(sku.sku_id);
+      const { listings, blocked, apiCalls: calls } = await collectForSku(sku, runId, blockedPids);
       apiCalls += calls;
 
       const listingIdByPid = await saveListings(listings);
@@ -37,7 +38,7 @@ export async function processChunk(runId: string, skuIds: string[]) {
       await saveSnapshot(runId, sku.sku_id, snapshot);
       await saveReport(report);
       console.info(
-        `[pipeline] ${sku.sku_id} ${sku.name}: 후보 ${listings.length} / 신뢰 ${confident.length} / 분류제외 ${cls.excludedCount} / 시세반영 ${prices.length} / 시장최저 ${snapshot.market_low ?? "-"}`,
+        `[pipeline] ${sku.sku_id} ${sku.name}: 후보 ${listings.length} / 차단스킵 ${blocked} / 신뢰 ${confident.length} / 분류제외 ${cls.excludedCount} / 시세반영 ${prices.length} / 시장최저 ${snapshot.market_low ?? "-"}`,
       );
     } catch (e: unknown) {
       errors++;

@@ -7,7 +7,7 @@ import { searchQuery } from "@/lib/naver";
 import { stripHtml, titleFilter, configForProduct } from "@/lib/naver-filter";
 import { classifyListings, extractSigInch } from "@/lib/catalog";
 import { tokenOverlap, TOKEN_OVERLAP_MIN } from "@/lib/match";
-import { loadActiveProducts, createRun, makeRunId } from "@/lib/db";
+import { loadActiveProducts, createRun, makeRunId, blockListing } from "@/lib/db";
 import { enqueueChunk, chunk } from "@/lib/queue";
 import { COLLECT } from "@/lib/config";
 
@@ -176,13 +176,36 @@ export async function deleteProduct(skuId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-// 잘못된 표본 리스팅 삭제 → 해당 SKU 시세/격차 재계산
+// 잘못된 표본 리스팅 삭제 → 영구 차단 등록(다음 스캔부터 미수집) → 해당 SKU 시세/격차 재계산
 export async function deleteListing(
   listingId: number,
   runId: string,
   skuId: string,
 ): Promise<ActionResult> {
-  const { error } = await supabaseAdmin().from("naver_listings").delete().eq("id", listingId);
+  const db = supabaseAdmin();
+
+  // 차단 등록용 정보를 삭제 전에 확보
+  const { data: listing } = await db
+    .from("naver_listings")
+    .select("product_id,title,mall_name,lprice,image")
+    .eq("id", listingId)
+    .single();
+  if (listing?.product_id) {
+    try {
+      await blockListing({
+        sku_id: skuId,
+        product_id: listing.product_id,
+        title: listing.title,
+        mall_name: listing.mall_name,
+        lprice: listing.lprice,
+        image: listing.image,
+      });
+    } catch (e) {
+      return { ok: false, error: `차단 등록 실패: ${e instanceof Error ? e.message : e}` };
+    }
+  }
+
+  const { error } = await db.from("naver_listings").delete().eq("id", listingId);
   if (error) return { ok: false, error: error.message };
   try {
     await recomputeSkuReport(runId, skuId);
@@ -191,5 +214,13 @@ export async function deleteListing(
   }
   revalidatePath(`/product/${skuId}`);
   revalidatePath("/");
+  return { ok: true };
+}
+
+// 차단 해제 (실수로 차단한 상품을 다음 스캔부터 다시 수집)
+export async function unblockListing(blockId: number, skuId: string): Promise<ActionResult> {
+  const { error } = await supabaseAdmin().from("naver_blocked_listings").delete().eq("id", blockId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/product/${skuId}`);
   return { ok: true };
 }

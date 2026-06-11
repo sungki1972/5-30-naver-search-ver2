@@ -77,6 +77,26 @@ export async function allProducts() {
   return data ?? [];
 }
 
+export interface BlockedRow {
+  id: number;
+  product_id: string;
+  title: string | null;
+  mall_name: string | null;
+  lprice: number | null;
+  image: string | null;
+  blocked_at: string;
+}
+
+// SKU의 영구 차단 목록 (다음 스캔부터 미수집)
+export async function blockedForSku(skuId: string): Promise<BlockedRow[]> {
+  const { data } = await supabaseAdmin()
+    .from("naver_blocked_listings")
+    .select("id,product_id,title,mall_name,lprice,image,blocked_at")
+    .eq("sku_id", skuId)
+    .order("blocked_at", { ascending: false });
+  return (data ?? []) as BlockedRow[];
+}
+
 export interface ListingRow {
   id: number;
   title: string;
@@ -85,6 +105,8 @@ export interface ListingRow {
   product_id: string | null;
   product_type: string | null;
   brand: string | null;
+  image: string | null;
+  link: string | null;
   confidence: number;
   counted: boolean; // 신뢰도 게이트(confidence >= 임계) 통과 여부
 }
@@ -93,7 +115,7 @@ export interface ListingRow {
 export async function listingsForSku(runId: string, skuId: string): Promise<ListingRow[]> {
   const { data } = await supabaseAdmin()
     .from("naver_product_matches")
-    .select("confidence, naver_listings(id,title,lprice,mall_name,product_id,product_type,brand)")
+    .select("confidence, naver_listings(id,title,lprice,mall_name,product_id,product_type,brand,image,link)")
     .eq("run_id", runId)
     .eq("sku_id", skuId);
   const threshold = Number(process.env.MATCH_CONFIDENCE_THRESHOLD ?? "0.80");
@@ -103,11 +125,13 @@ export async function listingsForSku(runId: string, skuId: string): Promise<List
     const l = (Array.isArray(raw) ? raw[0] : raw) as {
       id: number; title: string; lprice: number | null; mall_name: string | null;
       product_id: string | null; product_type: string | null; brand: string | null;
+      image: string | null; link: string | null;
     } | null;
     if (!l) continue;
     rows.push({
       id: l.id, title: l.title, lprice: l.lprice, mall_name: l.mall_name,
       product_id: l.product_id, product_type: l.product_type, brand: l.brand,
+      image: l.image, link: l.link,
       confidence: m.confidence as number,
       counted: (m.confidence as number) >= threshold,
     });

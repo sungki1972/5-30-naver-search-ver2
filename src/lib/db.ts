@@ -151,6 +151,31 @@ export async function loadRunReports(runId: string): Promise<PriceGapReportRow[]
   return (data ?? []) as PriceGapReportRow[];
 }
 
+// SKU별 차단된 네이버 상품 ID 집합 (수집 단계에서 건너뜀)
+export async function loadBlockedPids(skuId: string): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin()
+    .from("naver_blocked_listings")
+    .select("product_id")
+    .eq("sku_id", skuId);
+  if (error) throw error;
+  return new Set((data ?? []).map((r) => r.product_id as string));
+}
+
+// 표본 차단 등록 (사용자 삭제 시 호출; 중복은 무시)
+export async function blockListing(block: {
+  sku_id: string;
+  product_id: string;
+  title: string | null;
+  mall_name: string | null;
+  lprice: number | null;
+  image: string | null;
+}) {
+  const { error } = await supabaseAdmin()
+    .from("naver_blocked_listings")
+    .upsert(block, { onConflict: "sku_id,product_id", ignoreDuplicates: true });
+  if (error) throw error;
+}
+
 // naver_listings 12주 초과분 prune
 export async function pruneOldListings() {
   const cutoff = new Date(Date.now() - 84 * 24 * 3600 * 1000).toISOString();
