@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# OMC 세션 상태/로그 (크레덴셜 노출 가능)
+.omc/
