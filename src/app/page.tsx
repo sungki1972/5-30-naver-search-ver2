@@ -1,5 +1,4 @@
 import { dbConfigured, latestRunId, reportsForRun } from "@/lib/dashboard";
-import { ALERT } from "@/lib/config";
 import { ReportTable } from "./_components/ReportTable";
 import { SetupBanner } from "./_components/SetupBanner";
 import { ScanButton } from "./_components/ScanButton";
@@ -18,12 +17,6 @@ export default async function Home() {
   } catch (e) {
     err = e instanceof Error ? e.message : String(e);
   }
-
-  const breaches = reports.filter((r) => r.margin_breach).length;
-  const drops = reports.filter((r) => (r.price_drop_pct ?? 0) <= ALERT.priceDropPct).length;
-  const gaps = reports.map((r) => r.gap_pct).filter((g): g is number => g != null);
-  const avgGap = gaps.length ? Math.round((gaps.reduce((a, b) => a + b, 0) / gaps.length) * 10) / 10 : null;
-  const samples = reports.reduce((a, r) => a + r.sample_count, 0);
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
@@ -51,26 +44,7 @@ export default async function Home() {
         </div>
       )}
 
-      {runId && (
-        <>
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <SummaryCard label="리포트 품목" value={`${reports.length}개`} />
-            <SummaryCard label="마진 침해" value={`${breaches}건`} danger={breaches > 0} />
-            <SummaryCard label={`시세 급락 (≤${ALERT.priceDropPct}%)`} value={`${drops}건`} danger={drops > 0} />
-            <SummaryCard label="평균 격차 / 총 표본" value={`${avgGap == null ? "—" : `${avgGap > 0 ? "+" : ""}${avgGap}%`} · ${samples}건`} />
-          </div>
-          <ReportTable rows={reports} />
-        </>
-      )}
+      {runId && <ReportTable rows={reports} />}
     </main>
-  );
-}
-
-function SummaryCard({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
-  return (
-    <div className={`rounded-lg border bg-white p-4 shadow-sm ${danger ? "border-red-200" : "border-slate-200"}`}>
-      <div className="text-xs text-slate-400">{label}</div>
-      <div className={`mt-1 text-xl font-bold ${danger ? "text-red-600" : "text-slate-800"}`}>{value}</div>
-    </div>
   );
 }

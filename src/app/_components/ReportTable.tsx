@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ReportRow } from "@/lib/dashboard";
+import { CategoryTabs, buildTabs, matchesTab } from "./CategoryTabs";
 
 type SortKey = "sku_id" | "gap_pct" | "margin_pct" | "market_low" | "my_price";
 
@@ -13,11 +14,14 @@ function won(n: number | null): string {
 export function ReportTable({ rows }: { rows: ReportRow[] }) {
   const [q, setQ] = useState("");
   const [onlyBreach, setOnlyBreach] = useState(false);
+  const [tab, setTab] = useState("");
   const [sort, setSort] = useState<SortKey>("gap_pct");
   const [dir, setDir] = useState<1 | -1>(-1);
 
+  const tabs = useMemo(() => buildTabs(rows.map((r) => r.category)), [rows]);
+
   const filtered = useMemo(() => {
-    let r = rows;
+    let r = rows.filter((x) => matchesTab(x.category, tab));
     if (q) r = r.filter((x) => (x.name ?? "").includes(q) || x.sku_id.includes(q));
     if (onlyBreach) r = r.filter((x) => x.margin_breach);
     return [...r].sort((a, b) => {
@@ -27,7 +31,7 @@ export function ReportTable({ rows }: { rows: ReportRow[] }) {
         return String(av).localeCompare(String(bv)) * dir;
       return (Number(av) - Number(bv)) * dir;
     });
-  }, [rows, q, onlyBreach, sort, dir]);
+  }, [rows, q, onlyBreach, tab, sort, dir]);
 
   const th = (key: SortKey, label: string) => (
     <th
@@ -40,6 +44,7 @@ export function ReportTable({ rows }: { rows: ReportRow[] }) {
 
   return (
     <div>
+      <CategoryTabs tabs={tabs} active={tab} onSelect={setTab} />
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <input
           value={q}

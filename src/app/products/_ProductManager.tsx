@@ -7,6 +7,7 @@ import {
   saveProduct, deleteProduct, toggleProductActive, testSearchKeywords,
   type ProductInput, type KeywordTestResult,
 } from "@/app/actions";
+import { CategoryTabs, buildTabs, matchesTab } from "@/app/_components/CategoryTabs";
 
 const EMPTY: ProductInput = {
   sku_id: "", name: "", spec: "", inch: null, purchase_price: null, current_price: null,
@@ -24,10 +25,17 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState("");
   const [showInactive, setShowInactive] = useState(true);
 
+  const tabs = useMemo(() => buildTabs(initial.map((p) => p.category)), [initial]);
+  const categories = useMemo(
+    () => [...new Set(initial.map((p) => p.category?.trim()).filter((c): c is string => !!c))].sort(),
+    [initial],
+  );
+
   const filtered = useMemo(() => {
-    let r = initial;
+    let r = initial.filter((p) => matchesTab(p.category, tab));
     if (q) {
       const lq = q.toLowerCase();
       r = r.filter(
@@ -40,7 +48,7 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
     }
     if (!showInactive) r = r.filter((p) => p.active);
     return r;
-  }, [initial, q, showInactive]);
+  }, [initial, q, tab, showInactive]);
 
   function openNew() { setEditing({ ...EMPTY }); setIsNew(true); setMsg(null); }
   function openEdit(p: ProductInput) { setEditing({ ...p }); setIsNew(false); setMsg(null); }
@@ -75,6 +83,7 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
 
   return (
     <div>
+      <CategoryTabs tabs={tabs} active={tab} onSelect={setTab} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <input
           value={q}
@@ -169,7 +178,7 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
 
       {editing && (
         <ProductForm
-          value={editing} isNew={isNew} pending={pending} msg={msg}
+          value={editing} isNew={isNew} pending={pending} msg={msg} categories={categories}
           onChange={setEditing} onCancel={() => setEditing(null)} onSave={onSave}
         />
       )}
@@ -178,9 +187,10 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
 }
 
 function ProductForm({
-  value, isNew, pending, msg, onChange, onCancel, onSave,
+  value, isNew, pending, msg, categories, onChange, onCancel, onSave,
 }: {
   value: ProductInput; isNew: boolean; pending: boolean; msg: string | null;
+  categories: string[];
   onChange: (v: ProductInput) => void; onCancel: () => void; onSave: () => void;
 }) {
   const set = (patch: Partial<ProductInput>) => onChange({ ...value, ...patch });
@@ -205,12 +215,25 @@ function ProductForm({
 
         <div className="mt-2 space-y-4 text-sm">
           <Section title="기본 정보">
-            <Field label="품명 *">
-              <input value={value.name} onChange={(e) => set({ name: e.target.value })}
-                placeholder="예: LDS 5인치 LED 다운라이트 / 남영 누전차단기 30A" className="w-full rounded border border-slate-300 px-2 py-1.5" />
-            </Field>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <Field label="품명 *">
+                  <input value={value.name} onChange={(e) => set({ name: e.target.value })}
+                    placeholder="예: LDS 5인치 LED 다운라이트 / 남영 누전차단기 30A" className="w-full rounded border border-slate-300 px-2 py-1.5" />
+                </Field>
+              </div>
+              <Field label="카테고리 (탭 분류)">
+                <input value={value.category ?? ""} onChange={(e) => set({ category: e.target.value })}
+                  list="category-options" placeholder="예: 다운라이트"
+                  className="w-full rounded border border-slate-300 px-2 py-1.5" />
+                <datalist id="category-options">
+                  {categories.map((c) => <option key={c} value={c} />)}
+                </datalist>
+              </Field>
+            </div>
             <p className="text-xs text-slate-400">
-              인치·와트 같은 규격이 품명이나 검색어에 있으면 자동 인식되어 동일 규격 제품끼리만 비교합니다. 별도 입력 불필요.
+              인치·와트 같은 규격이 품명이나 검색어에 있으면 자동 인식되어 동일 규격 제품끼리만 비교합니다.
+              카테고리는 품목이 많아질 때 리포트·관리 화면의 탭으로 사용됩니다.
             </p>
           </Section>
 

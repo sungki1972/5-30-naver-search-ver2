@@ -61,6 +61,29 @@ export async function saveProduct(input: ProductInput): Promise<ActionResult> {
       { onConflict: "sku_id" },
     );
   if (error) return { ok: false, error: error.message };
+
+  // 판매가/매입가/마진율 변경을 격차 리포트에 즉시 반영:
+  // 최신 run에 이 SKU 리포트가 있으면 저장된 표본으로 재계산 (스캔 불필요)
+  try {
+    const { data: latest } = await supabaseAdmin()
+      .from("naver_run_logs")
+      .select("run_id")
+      .order("started_at", { ascending: false })
+      .limit(1);
+    const runId = latest?.[0]?.run_id;
+    if (runId) {
+      const { data: existing } = await supabaseAdmin()
+        .from("naver_price_gap_reports")
+        .select("sku_id")
+        .eq("run_id", runId)
+        .eq("sku_id", skuId)
+        .maybeSingle();
+      if (existing) await recomputeSkuReport(runId, skuId);
+    }
+  } catch (e) {
+    console.error("[saveProduct] 리포트 재계산 실패:", e instanceof Error ? e.message : e);
+  }
+
   revalidatePath("/products");
   revalidatePath("/");
   return { ok: true };

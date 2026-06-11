@@ -21,6 +21,7 @@ export async function latestRunId(): Promise<string | null> {
 export interface ReportRow {
   sku_id: string;
   name: string | null;
+  category: string | null;
   my_price: number | null;
   purchase_price: number | null;
   market_low: number | null;
@@ -41,9 +42,13 @@ export async function reportsForRun(runId: string): Promise<ReportRow[]> {
     .eq("run_id", runId);
   const { data: products } = await supabaseAdmin()
     .from("naver_my_products")
-    .select("sku_id,name");
-  const nameById = new Map((products ?? []).map((p) => [p.sku_id, p.name]));
-  return (reports ?? []).map((r) => ({ ...r, name: nameById.get(r.sku_id) ?? null })) as ReportRow[];
+    .select("sku_id,name,category");
+  const byId = new Map((products ?? []).map((p) => [p.sku_id, p]));
+  return (reports ?? []).map((r) => ({
+    ...r,
+    name: byId.get(r.sku_id)?.name ?? null,
+    category: byId.get(r.sku_id)?.category ?? null,
+  })) as ReportRow[];
 }
 
 export async function recentRuns(limit = 20) {
