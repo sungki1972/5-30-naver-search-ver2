@@ -1,4 +1,5 @@
-// 품목 CRUD UI 실측 검증 (puppeteer는 6-4-url-list 설치본 재사용)
+/* eslint-disable @typescript-eslint/no-require-imports */
+// 품목 CRUD UI 실측 검증 (puppeteer는 6-4-url-list 설치본 재사용; CJS 스크립트라 require 필요)
 // 실행: node scripts/verify-ui-crud.cjs [baseUrl]
 const { createRequire } = require("module");
 const req = createRequire("/home/gihwaja/apps/6-4-url-list/node_modules/");
