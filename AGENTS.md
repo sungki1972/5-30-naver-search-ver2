@@ -29,14 +29,15 @@ Vercel Cron(월 09:00 KST) → /api/cron/scan (오케스트레이터, enqueue만
 
 ## 핵심 로직 (ver1 포팅)
 - `src/lib/naver-filter.ts` — 제목 필터: 조명키워드 필수, 비조명 제외, **인치 정확매칭**, 옵션-인치 추출, LDS/리더스 브랜드 검증. (라이브 실증: 5인치 1150건 중 60건만 통과)
-- `src/lib/catalog.ts` — **다나와식 카탈로그 분류** (2026-06-11): 네이버 가격비교가 채택한 "동일 규격끼리 묶고 그룹 안에서만 최저가" 방식. ①productType 버킷(1=가격비교 카탈로그, 4~12=중고/단종/판매예정 → 제외) ②인치×와트 시그니처 그룹핑(파이→인치 환산 포함) ③옵션묶음 제외(제목에 복수 인치/와트 → lprice=최저옵션 미끼) ④저가 아웃라이어 컷(타깃그룹 중앙값×0.5 미만이고 개수<3 또는 몰<2 → 제외, config.CATALOG). pipeline·recompute·검색어테스트가 공유. **SKU `spec`에 와트 기입 시 와트 불일치 제외 발동** → 분류 정밀도↑.
+- `src/lib/catalog.ts` — **다나와식 카탈로그 분류** (2026-06-11): 네이버 가격비교가 채택한 "동일 규격끼리 묶고 그룹 안에서만 최저가" 방식. ①productType 버킷(1=가격비교 카탈로그, 4~12=중고/단종/판매예정 → 제외) ②인치×와트×**암페어** 시그니처 그룹핑(파이→인치 환산 포함, 그룹키 `5인치|12W|?A` 형식) ③옵션묶음 제외(제목에 복수 규격 → lprice=최저옵션 미끼) ④저가 아웃라이어 컷(타깃그룹 중앙값×0.5 미만이고 개수<3 또는 몰<2 → 제외, config.CATALOG). pipeline·recompute·검색어테스트가 공유. 규격은 **품명·검색어에서 자동 인식**(별도 입력 없음).
+- **범용 전기자재 모드** (2026-06-11): 품목 폼은 품명+가격+검색어만. 고유코드 자동 생성(`P-YYMMDD-HHMMSS`, actions.ts genSkuId), 인치는 저장 시 품명·검색어에서 자동 도출. `naver-filter.ts configForProduct` — 품명에 조명키워드 있으면 기존 다운라이트 필터 유지, LDS/리더스 브랜드 검증은 품명에 브랜드가 있을 때만, 비조명 품목은 강제 없음. `match.ts tokenOverlap` — 인치 없는 품목은 품명 토큰 60% 이상 겹치면 conf 0.9 확정, 미달은 Haiku 판정 (기존엔 무조건 1.0이라 범용 시 오염). 라이브 실증: "남영 누전차단기 30A" → 30A 그룹 21건/20A 격리.
 - `src/lib/pricing.ts` — **권장가 = ceil(시장기준가 × (1+마진율) / 1000) × 1000** (천원 올림). 기준 = 시장최저(low) 또는 인기중앙값(median). ⚠️ ver1 `round_to_thousand`(반올림) 복사 금지 — ceil 사용.
 - `src/lib/match.ts` — 2단 깔때기: ①인치 명시 일치 regex(conf 1.0) ②애매건만 Haiku JSON. 게이트 0.80. Haiku 장애 시 conf=0 폴백. 게이트 통과분이 catalog.ts로 넘어가 최종 시세 표본이 결정됨.
 
 ## UI (2026-06-11 전면 개편)
 - `layout.tsx` + `_components/Nav.tsx` — 공용 상단 내비(현재 경로 강조), 라이트 테마 고정, 푸터에 BUILD_ID.
 - `/` — 요약 카드(품목/마진침해/시세급락/평균격차) + 격차 테이블.
-- `/products` — CRUD 전면 개편: 검색·카테고리 필터, 인라인 활성 토글, 복제, 마진 컬럼, 모달 폼 섹션화. **"검색어 테스트(라이브)"** 버튼 = 저장 전 네이버 실검색(키워드당 1페이지)→필터→분류 통과량·그룹 분포·시세 미리보기 (`actions.ts testSearchKeywords`).
+- `/products` — CRUD 전면 개편: 검색 필터, 인라인 활성 토글, 복제(코드 자동 재생성), 마진 컬럼. 폼은 **품명/매입가/판매가/마진율/검색어만** (SKU·인치·카테고리·규격 필드 제거 — 자동 인식). **"검색어 테스트(라이브)"** = 저장 전 네이버 실검색(키워드당 1페이지)→필터→토큰매칭→분류 통과량·그룹 분포·시세 미리보기 (`actions.ts testSearchKeywords`). puppeteer CRUD 실측 스크립트 `scripts/verify-ui-crud.cjs` (6-4-url-list의 puppeteer 재사용).
 - `/product/[sku]` — 수집 표본을 **다나와식 그룹 아코디언**으로 표시: 그룹별 최저/중앙값/반영수, "내 규격" 배지, productType 배지(가격비교/일반/중고), 제외 사유 칩, 표본 삭제→즉시 재계산.
 - `scripts/recompute-latest.ts` — 최신 run 전 SKU를 현재 알고리즘으로 재계산 (`node --env-file=.env.local --import tsx scripts/recompute-latest.ts`).
 

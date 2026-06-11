@@ -51,21 +51,39 @@ export const TYPE_BUCKET_LABEL: Record<TypeBucket, string> = {
 export interface Signature {
   inch: number | null;
   watt: number | null;
+  amp: number | null; // 암페어 (차단기 등 전기자재 핵심 규격)
   multiSpec: boolean; // 한 제목에 서로 다른 규격 옵션 다수 → lprice는 최저 옵션 미끼가일 가능성
 }
 
-// 와트 추출: 서로 다른 W가 2개 이상이면 옵션묶음(multiSpec)
+// 단위 수치 추출 공통: 서로 다른 값이 2개 이상이면 옵션묶음(multi)
+function extractUnit(
+  text: string,
+  re: RegExp,
+  max: number,
+): { value: number | null; multi: boolean } {
+  const found = new Set<number>();
+  re.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const v = parseFloat(m[1]);
+    if (!Number.isNaN(v) && v > 0 && v <= max) found.add(v);
+  }
+  if (found.size === 1) return { value: [...found][0], multi: false };
+  return { value: null, multi: found.size > 1 };
+}
+
+// 와트: "15W" (단어 연속 제외: 5Way 등)
 const WATT_RE = /(\d+(?:\.\d+)?)\s*[wW](?![a-zA-Z가-힣])/g;
 export function extractWatt(text: string): { watt: number | null; multi: boolean } {
-  const found = new Set<number>();
-  WATT_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = WATT_RE.exec(text)) !== null) {
-    const v = parseFloat(m[1]);
-    if (!Number.isNaN(v) && v > 0 && v <= 400) found.add(v);
-  }
-  if (found.size === 1) return { watt: [...found][0], multi: false };
-  return { watt: null, multi: found.size > 1 };
+  const r = extractUnit(text, WATT_RE, 400);
+  return { watt: r.value, multi: r.multi };
+}
+
+// 암페어: "30A" (3KA 같은 차단용량 표기는 K가 앞에 붙어 미매칭)
+const AMP_RE = /(\d+(?:\.\d+)?)\s*[aA](?![a-zA-Z0-9가-힣])/g;
+export function extractAmp(text: string): { amp: number | null; multi: boolean } {
+  const r = extractUnit(text, AMP_RE, 1000);
+  return { amp: r.value, multi: r.multi };
 }
 
 // 파이(타공) → 인치 환산 (naver-filter INCH_REQUIRE와 동일 매핑)
@@ -100,19 +118,19 @@ export function extractSigInch(title: string): { inch: number | null; multi: boo
 export function extractSignature(title: string): Signature {
   const i = extractSigInch(title);
   const w = extractWatt(title);
-  return { inch: i.inch, watt: w.watt, multiSpec: i.multi || w.multi };
+  const a = extractAmp(title);
+  return { inch: i.inch, watt: w.watt, amp: a.amp, multiSpec: i.multi || w.multi || a.multi };
 }
 
 export function groupKeyOf(sig: Signature, fallbackInch: number | null): string {
   const inch = sig.inch ?? fallbackInch;
-  return `${inch ?? "?"}인치|${sig.watt ?? "?"}W`;
+  return `${inch ?? "?"}인치|${sig.watt ?? "?"}W|${sig.amp ?? "?"}A`;
 }
 
+// "?" 파트(미표기)는 라벨에서 숨기고, 전부 미상이면 "규격 미상"
 export function groupLabelOf(key: string): string {
-  const [inch, watt] = key.split("|");
-  const i = inch === "?인치" ? "인치 미상" : inch;
-  const w = watt === "?W" ? "W 미표기" : watt;
-  return `${i} · ${w}`;
+  const parts = key.split("|").filter((p) => !p.startsWith("?"));
+  return parts.length ? parts.join(" · ") : "규격 미상";
 }
 
 export interface ClassifiedListing<T extends CatalogItem = CatalogItem> {
@@ -159,12 +177,18 @@ export function skuWattOf(sku: SkuSpec): number | null {
   return extractWatt(`${sku.spec ?? ""} ${sku.name ?? ""}`).watt;
 }
 
+// SKU의 spec/name에서 기준 암페어 도출 (없으면 null → 암페어 무관 매칭)
+export function skuAmpOf(sku: SkuSpec): number | null {
+  return extractAmp(`${sku.spec ?? ""} ${sku.name ?? ""}`).amp;
+}
+
 // 핵심: 리스팅을 카탈로그 그룹으로 분류하고, SKU 규격 그룹에서 아웃라이어를 걷어낸 시세 가격을 산출.
 export function classifyListings<T extends CatalogItem>(
   sku: SkuSpec,
   items: T[],
 ): ClassifyResult<T> {
   const skuWatt = skuWattOf(sku);
+  const skuAmp = skuAmpOf(sku);
 
   // 1) 시그니처/버킷/1차 포함 판정
   const classified: ClassifiedListing<T>[] = items.map((item) => {
@@ -190,15 +214,19 @@ export function classifyListings<T extends CatalogItem>(
     } else if (skuWatt != null && sig.watt != null && sig.watt !== skuWatt) {
       included = false;
       reason = `와트 불일치 (${sig.watt}W ≠ ${skuWatt}W)`;
+    } else if (skuAmp != null && sig.amp != null && sig.amp !== skuAmp) {
+      included = false;
+      reason = `암페어 불일치 (${sig.amp}A ≠ ${skuAmp}A)`;
     }
     return { item, sig, bucket, groupKey, included, reason };
   });
 
   const targetKey = (k: string): boolean => {
-    const [inchPart, wattPart] = k.split("|");
+    const [inchPart, wattPart, ampPart] = k.split("|");
     const inchOk = sku.inch == null || inchPart === `${sku.inch}인치`;
     const wattOk = skuWatt == null || wattPart === `${skuWatt}W` || wattPart === "?W";
-    return inchOk && wattOk;
+    const ampOk = skuAmp == null || ampPart === `${skuAmp}A` || ampPart === "?A";
+    return inchOk && wattOk && ampOk;
   };
 
   // 2) 저가 아웃라이어 컷 (타깃 그룹 한정): 중앙값의 lowOutlierRatio 미만이면서

@@ -24,13 +24,7 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [cat, setCat] = useState("");
   const [showInactive, setShowInactive] = useState(true);
-
-  const categories = useMemo(
-    () => [...new Set(initial.map((p) => p.category).filter((c): c is string => !!c))].sort(),
-    [initial],
-  );
 
   const filtered = useMemo(() => {
     let r = initial;
@@ -44,15 +38,15 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
           p.search_keywords.some((k) => k.toLowerCase().includes(lq)),
       );
     }
-    if (cat) r = r.filter((p) => p.category === cat);
     if (!showInactive) r = r.filter((p) => p.active);
     return r;
-  }, [initial, q, cat, showInactive]);
+  }, [initial, q, showInactive]);
 
   function openNew() { setEditing({ ...EMPTY }); setIsNew(true); setMsg(null); }
   function openEdit(p: ProductInput) { setEditing({ ...p }); setIsNew(false); setMsg(null); }
   function openDuplicate(p: ProductInput) {
-    setEditing({ ...p, sku_id: `${p.sku_id}-2`, name: `${p.name} (복제)` });
+    // 고유코드는 저장 시 자동 생성되도록 비움
+    setEditing({ ...p, sku_id: "", name: `${p.name} (복제)` });
     setIsNew(true);
     setMsg(null);
   }
@@ -85,19 +79,9 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="SKU / 품명 / 규격 / 검색어"
+          placeholder="코드 / 품명 / 검색어"
           className="w-56 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm focus:border-emerald-500 focus:outline-none"
         />
-        {categories.length > 0 && (
-          <select
-            value={cat}
-            onChange={(e) => setCat(e.target.value)}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
-          >
-            <option value="">전체 카테고리</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        )}
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
           <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
           비활성 포함
@@ -117,9 +101,8 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
-              <th className="px-3 py-2.5 text-left">SKU</th>
-              <th className="px-3 py-2.5 text-left">품명 / 규격</th>
-              <th className="px-3 py-2.5 text-right">인치</th>
+              <th className="px-3 py-2.5 text-left">코드</th>
+              <th className="px-3 py-2.5 text-left">품명</th>
               <th className="px-3 py-2.5 text-right">매입가</th>
               <th className="px-3 py-2.5 text-right">판매가</th>
               <th className="px-3 py-2.5 text-right">마진</th>
@@ -141,9 +124,12 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
                   <td className="px-3 py-2 font-mono text-xs">{p.sku_id}</td>
                   <td className="px-3 py-2">
                     <Link href={`/product/${p.sku_id}`} className="font-medium text-emerald-700 hover:underline">{p.name}</Link>
-                    {p.spec && <div className="text-xs text-slate-400">{p.spec}{p.category ? ` · ${p.category}` : ""}</div>}
+                    {p.inch != null && (
+                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500" title="품명·검색어에서 자동 인식된 규격">
+                        {p.inch}인치 자동인식
+                      </span>
+                    )}
                   </td>
-                  <td className="px-3 py-2 text-right">{p.inch ?? "—"}</td>
                   <td className="px-3 py-2 text-right">{won(p.purchase_price)}</td>
                   <td className="px-3 py-2 text-right font-medium">{won(p.current_price)}</td>
                   <td className={`px-3 py-2 text-right ${margin != null && margin <= 0 ? "font-semibold text-red-600" : "text-slate-500"}`}>
@@ -173,7 +159,7 @@ export function ProductManager({ initial }: { initial: ProductInput[] }) {
               );
             })}
             {!filtered.length && (
-              <tr><td colSpan={9} className="px-3 py-10 text-center text-slate-400">
+              <tr><td colSpan={8} className="px-3 py-10 text-center text-slate-400">
                 {initial.length ? "조건에 맞는 품목이 없습니다." : "품목이 없습니다. “+ 새 품목”으로 추가하세요."}
               </td></tr>
             )}
@@ -206,7 +192,7 @@ function ProductForm({
   async function runTest() {
     if (!value.search_keywords.length) { setTestErr("검색어를 먼저 입력하세요."); return; }
     setTesting(true); setTestErr(null); setTestRes(null);
-    const r = await testSearchKeywords(value.search_keywords, value.inch, value.spec);
+    const r = await testSearchKeywords(value.search_keywords, value.name);
     setTesting(false);
     if (r.ok) setTestRes(r.results); else setTestErr(r.error);
   }
@@ -214,37 +200,21 @@ function ProductForm({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
       <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-4 text-lg font-bold text-slate-800">{isNew ? "새 품목 추가" : `품목 수정 — ${value.sku_id}`}</h2>
+        <h2 className="mb-1 text-lg font-bold text-slate-800">{isNew ? "새 품목 추가" : `품목 수정 — ${value.sku_id}`}</h2>
+        {isNew && <p className="mb-3 text-xs text-slate-400">고유코드는 저장 시 자동 생성됩니다.</p>}
 
-        <div className="space-y-4 text-sm">
+        <div className="mt-2 space-y-4 text-sm">
           <Section title="기본 정보">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="SKU * (고유 코드)">
-                <input disabled={!isNew} value={value.sku_id} onChange={(e) => set({ sku_id: e.target.value })}
-                  placeholder="예: LDS-D-11" className="w-full rounded border border-slate-300 px-2 py-1.5 disabled:bg-slate-100" />
-              </Field>
-              <Field label="카테고리">
-                <input value={value.category ?? ""} onChange={(e) => set({ category: e.target.value })}
-                  placeholder="예: 다운라이트" className="w-full rounded border border-slate-300 px-2 py-1.5" />
-              </Field>
-            </div>
             <Field label="품명 *">
               <input value={value.name} onChange={(e) => set({ name: e.target.value })}
-                placeholder="예: LDS 5인치 LED 다운라이트" className="w-full rounded border border-slate-300 px-2 py-1.5" />
+                placeholder="예: LDS 5인치 LED 다운라이트 / 남영 누전차단기 30A" className="w-full rounded border border-slate-300 px-2 py-1.5" />
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="규격 (와트 포함 권장 — 분류 정밀도 ↑)">
-                <input value={value.spec ?? ""} onChange={(e) => set({ spec: e.target.value })}
-                  placeholder="예: 5인치 15W 주광색" className="w-full rounded border border-slate-300 px-2 py-1.5" />
-              </Field>
-              <Field label="인치">
-                <input type="number" step="0.5" value={value.inch ?? ""} onChange={(e) => set({ inch: numOrNull(e.target.value) })}
-                  className="w-full rounded border border-slate-300 px-2 py-1.5" />
-              </Field>
-            </div>
+            <p className="text-xs text-slate-400">
+              인치·와트 같은 규격이 품명이나 검색어에 있으면 자동 인식되어 동일 규격 제품끼리만 비교합니다. 별도 입력 불필요.
+            </p>
           </Section>
 
-          <Section title="가격 · 마진">
+          <Section title="가격 · 마진 (직접 입력)">
             <div className="grid grid-cols-3 gap-3">
               <Field label="매입가 (원)"><input type="number" value={value.purchase_price ?? ""} onChange={(e) => set({ purchase_price: numOrNull(e.target.value) })} className="w-full rounded border border-slate-300 px-2 py-1.5" /></Field>
               <Field label="내 판매가 (원)"><input type="number" value={value.current_price ?? ""} onChange={(e) => set({ current_price: numOrNull(e.target.value) })} className="w-full rounded border border-slate-300 px-2 py-1.5" /></Field>
@@ -261,7 +231,7 @@ function ProductForm({
           <Section title="네이버 검색 설정">
             <Field label="검색어 (줄바꿈 구분, 1~5개)">
               <textarea rows={3} value={value.search_keywords.join("\n")}
-                placeholder={"LDS 5인치 다운라이트\n리더스 매입등 5인치"}
+                placeholder={"LDS 5인치 다운라이트\n남영 누전차단기 30A"}
                 onChange={(e) => set({ search_keywords: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
                 className="w-full rounded border border-slate-300 px-2 py-1.5 font-mono text-xs" />
             </Field>

@@ -1,5 +1,5 @@
 import { searchQuery } from "./naver";
-import { stripHtml, titleFilter, defaultConfig } from "./naver-filter";
+import { stripHtml, titleFilter, configForProduct } from "./naver-filter";
 import { COLLECT } from "./config";
 import { MyProduct, NaverItem, NaverListingRow } from "./types";
 
@@ -11,7 +11,7 @@ export interface CollectResult {
 
 // SKU 하나에 대해 search_keywords × (asc+sim) 수집 → 필터 → productId dedup(최저가 유지)
 export async function collectForSku(sku: MyProduct, runId: string): Promise<CollectResult> {
-  const cfg = defaultConfig(sku.inch);
+  const cfg = configForProduct(sku);
   const byPid = new Map<string, NaverListingRow>();
   let rejected = 0;
   let apiCalls = 0;

@@ -120,7 +120,7 @@ describe("classifyListings — 다나와식 분류", () => {
     ]);
     expect(cls.groups[0].isTarget).toBe(true);
     expect(cls.groups[0].low).toBe(9000);
-    const g20 = cls.groups.find((g) => g.key === "5인치|20W")!;
+    const g20 = cls.groups.find((g) => g.key === "5인치|20W|?A")!;
     expect(g20.isTarget).toBe(false);
     expect(g20.includedCount).toBe(0); // 와트 불일치로 제외됨
   });
@@ -139,6 +139,6 @@ describe("classifyListings — 다나와식 분류", () => {
   });
 
   it("extractSignature 종합", () => {
-    expect(extractSignature("LDS 5인치 15W 주광색")).toEqual({ inch: 5, watt: 15, multiSpec: false });
+    expect(extractSignature("LDS 5인치 15W 주광색")).toEqual({ inch: 5, watt: 15, amp: null, multiSpec: false });
   });
 });

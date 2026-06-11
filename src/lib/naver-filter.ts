@@ -94,6 +94,28 @@ export function defaultConfig(inch: number | null): FilterConfig {
   };
 }
 
+// 품목별 자동 적응 필터 (범용 전기자재·조명):
+// - 품명/검색어에 조명 키워드가 있으면 기존 다운라이트 필터(조명키워드 필수) 유지
+// - 브랜드 검증은 품명/검색어에 해당 브랜드가 실제로 등장할 때만 적용
+// - 그 외 품목은 카테고리/브랜드 강제 없이 인치·가격·제외어 검사만
+export function configForProduct(p: {
+  name: string;
+  search_keywords?: string[] | null;
+  inch: number | null;
+}): FilterConfig {
+  const text = `${p.name} ${(p.search_keywords ?? []).join(" ")}`;
+  const up = text.toUpperCase();
+  const isLighting = DEFAULT_LIGHT_KEYWORDS.some((k) => up.includes(k.toUpperCase()));
+  const brands = DEFAULT_BRAND_KEYWORDS.filter((b) => up.includes(b.toUpperCase()));
+  return {
+    inch: p.inch,
+    lightKeywords: isLighting ? DEFAULT_LIGHT_KEYWORDS : [],
+    excludeKeywords: DEFAULT_NON_LIGHT_EXCLUDE,
+    brandKeywords: brands,
+    minPrice: 1500,
+  };
+}
+
 // 통과 여부 + 사유 (ver1 title_filter)
 export function titleFilter(
   title: string,

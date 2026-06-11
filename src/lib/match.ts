@@ -13,6 +13,19 @@ export interface MatchedListing extends NaverListingRow {
   _match_method: "regex" | "llm" | "none";
 }
 
+// 품명 핵심 토큰(2자 이상) 중 제목에 포함된 비율. 범용 품목의 결정론 매칭용.
+export const TOKEN_OVERLAP_MIN = 0.6;
+export function tokenOverlap(name: string, title: string): number {
+  const tokens = name
+    .toLowerCase()
+    .split(/[^a-z0-9가-힣.]+/)
+    .filter((t) => t.length >= 2);
+  if (!tokens.length) return 0;
+  const lower = title.toLowerCase();
+  const hit = tokens.filter((t) => lower.includes(t)).length;
+  return hit / tokens.length;
+}
+
 export async function matchListings(
   sku: MyProduct,
   listings: NaverListingRow[],
@@ -30,9 +43,11 @@ export async function matchListings(
         continue;
       }
       ambiguous.push(l);
+    } else if (tokenOverlap(sku.name, l.title) >= TOKEN_OVERLAP_MIN) {
+      // 인치 정보 없는 범용 품목: 품명 핵심 토큰이 충분히 겹치면 확정
+      out.push({ ...l, _confidence: 0.9, _match_method: "regex" });
     } else {
-      // 인치 정보 없는 도메인: 필터 통과를 신뢰(regex 1.0)
-      out.push({ ...l, _confidence: 1.0, _match_method: "regex" });
+      ambiguous.push(l);
     }
   }
 
