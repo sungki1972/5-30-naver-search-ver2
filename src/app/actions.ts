@@ -7,6 +7,9 @@ import { searchQuery } from "@/lib/naver";
 import { stripHtml, titleFilter, configForProduct } from "@/lib/naver-filter";
 import { classifyListings, extractSigInch } from "@/lib/catalog";
 import { tokenOverlap, TOKEN_OVERLAP_MIN } from "@/lib/match";
+import { loadActiveProducts, createRun, makeRunId } from "@/lib/db";
+import { enqueueChunk, chunk } from "@/lib/queue";
+import { COLLECT } from "@/lib/config";
 
 export interface ProductInput {
   sku_id: string;
@@ -61,6 +64,26 @@ export async function saveProduct(input: ProductInput): Promise<ActionResult> {
   revalidatePath("/products");
   revalidatePath("/");
   return { ok: true };
+}
+
+// 수동 스캔: cron/scan과 동일한 오케스트레이션 (run 생성 → chunk enqueue)
+export async function startScan(): Promise<
+  { ok: true; runId: string; skuCount: number; chunkTotal: number } | { ok: false; error: string }
+> {
+  try {
+    const products = await loadActiveProducts();
+    if (!products.length) return { ok: false, error: "활성 품목이 없습니다." };
+    const runId = makeRunId();
+    const chunks = chunk(products.map((p) => p.sku_id), COLLECT.chunkSize);
+    await createRun(runId, products.length, chunks.length);
+    for (let i = 0; i < chunks.length; i++) {
+      await enqueueChunk(runId, chunks[i], i);
+    }
+    revalidatePath("/runs");
+    return { ok: true, runId, skuCount: products.length, chunkTotal: chunks.length };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "스캔 시작 실패" };
+  }
 }
 
 // 목록에서 활성/비활성 즉시 토글

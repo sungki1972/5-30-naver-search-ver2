@@ -2,6 +2,7 @@ import { dbConfigured, latestRunId, reportsForRun } from "@/lib/dashboard";
 import { ALERT } from "@/lib/config";
 import { ReportTable } from "./_components/ReportTable";
 import { SetupBanner } from "./_components/SetupBanner";
+import { ScanButton } from "./_components/ScanButton";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +27,15 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">시세 격차 리포트</h1>
-        <p className="text-sm text-slate-500">
-          내 판매가 vs 네이버 시세 — 다나와식 카탈로그 분류로 동일 규격 제품만 비교
-          {runId && <> · 최근 실행 <span className="font-mono">{runId}</span></>}
-        </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">시세 격차 리포트</h1>
+          <p className="text-sm text-slate-500">
+            내 판매가 vs 네이버 시세 — 다나와식 카탈로그 분류로 동일 규격 제품만 비교
+            {runId && <> · 최근 실행 <span className="font-mono">{runId}</span></>}
+          </p>
+        </div>
+        <ScanButton />
       </header>
 
       {err && (

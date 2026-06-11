@@ -1,5 +1,6 @@
 import { dbConfigured, recentRuns } from "@/lib/dashboard";
 import { SetupBanner } from "@/app/_components/SetupBanner";
+import { ScanButton } from "@/app/_components/ScanButton";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,13 @@ export default async function RunsPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-1 text-2xl font-bold text-slate-800">실행 이력</h1>
-      <p className="mb-4 text-sm text-slate-500">주간 스캔 실행 로그 (최근 20건)</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="mb-1 text-2xl font-bold text-slate-800">실행 이력</h1>
+          <p className="text-sm text-slate-500">주간 자동 + 수동 스캔 실행 로그 (최근 20건)</p>
+        </div>
+        <ScanButton />
+      </div>
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-600">

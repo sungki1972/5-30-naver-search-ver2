@@ -1,5 +1,5 @@
 // 중앙 설정 + BUILD_ID (수정마다 올림 — 서버/클라이언트 일치 감지용)
-export const BUILD_ID = "2026.06.11-002";
+export const BUILD_ID = "2026.06.11-003";
 
 // 매칭 신뢰도 게이트 (env로 override)
 export const MATCH_CONFIDENCE_THRESHOLD = Number(
