@@ -25,7 +25,7 @@ export async function processChunk(runId: string, skuIds: string[]) {
       const matched = await matchListings(sku, listings);
       await saveMatches(runId, sku.sku_id, matched, listingIdByPid);
 
-      // 다나와식 카탈로그 분류: 신뢰 매칭 → 규격 그룹핑 → 아웃라이어 컷
+      // 다나와식 카탈로그 분류: 신뢰 매칭 → 규격(인치/와트/암페어) 그룹핑 → 규격 불일치·옵션묶음 제외
       const confident = matched.filter((m) => m._confidence >= MATCH_CONFIDENCE_THRESHOLD);
       const cls = classifyListings(sku, confident);
       const prices = cls.prices;

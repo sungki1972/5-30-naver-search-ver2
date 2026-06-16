@@ -85,7 +85,7 @@ describe("classifyListings — 다나와식 분류", () => {
     expect(cls.prices).toEqual([9000]);
   });
 
-  it("저가 아웃라이어 컷 — LDS-D-10 2,800원 노이즈 케이스", () => {
+  it("저가 아웃라이어 컷 제거 — 실제 최저가는 단건이어도 반영", () => {
     const cls = classifyListings({ inch: 6, spec: null, name: "LDS 6인치" }, [
       item("LDS 6인치 다운라이트", 2800, "2", "몰X"),
       item("LDS 6인치 다운라이트", 9000),
@@ -93,13 +93,13 @@ describe("classifyListings — 다나와식 분류", () => {
       item("LDS 6인치 다운라이트", 10000, "2", "몰C"),
       item("LDS 6인치 다운라이트", 9800, "2", "몰D"),
     ]);
-    expect(Math.min(...cls.prices)).toBe(9000);
+    // 규격이 맞는 한 저가라는 이유만으로 제외하지 않음
+    expect(Math.min(...cls.prices)).toBe(2800);
     const low = cls.listings.find((c) => c.item.lprice === 2800)!;
-    expect(low.included).toBe(false);
-    expect(low.reason).toContain("아웃라이어");
+    expect(low.included).toBe(true);
   });
 
-  it("저가 클러스터가 충분하면 실제 시장가로 인정", () => {
+  it("저가 클러스터도 그대로 반영", () => {
     const cls = classifyListings({ inch: 6, spec: null, name: "LDS 6인치" }, [
       item("LDS 6인치 다운라이트", 4500, "2", "몰X"),
       item("LDS 6인치 다운라이트", 4600, "2", "몰Y"),

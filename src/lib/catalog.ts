@@ -8,7 +8,6 @@
 //   3=가격비교 매칭 일반상품  4~6=중고  7~9=단종  10~12=판매예정
 
 import { extractOptionInch } from "./naver-filter";
-import { CATALOG } from "./config";
 
 export interface CatalogItem {
   title: string;
@@ -182,7 +181,7 @@ export function skuAmpOf(sku: SkuSpec): number | null {
   return extractAmp(`${sku.spec ?? ""} ${sku.name ?? ""}`).amp;
 }
 
-// 핵심: 리스팅을 카탈로그 그룹으로 분류하고, SKU 규격 그룹에서 아웃라이어를 걷어낸 시세 가격을 산출.
+// 핵심: 리스팅을 카탈로그 그룹으로 분류하고, SKU 규격 그룹의 시세 가격을 산출.
 export function classifyListings<T extends CatalogItem>(
   sku: SkuSpec,
   items: T[],
@@ -229,23 +228,9 @@ export function classifyListings<T extends CatalogItem>(
     return inchOk && wattOk && ampOk;
   };
 
-  // 2) 저가 아웃라이어 컷 (타깃 그룹 한정): 중앙값의 lowOutlierRatio 미만이면서
-  //    클러스터(개수·판매처)가 작으면 제외. 충분히 모이면 실제 시장가로 인정.
-  const pool = classified.filter((c) => c.included && targetKey(c.groupKey));
-  const med = median(pool.map((c) => c.item.lprice ?? 0));
-  if (med != null) {
-    const fence = med * CATALOG.lowOutlierRatio;
-    const lows = pool.filter((c) => (c.item.lprice ?? 0) < fence);
-    const lowMalls = new Set(lows.map((c) => c.item.mall_name ?? "")).size;
-    if (lows.length && (lows.length < CATALOG.minLowCluster || lowMalls < CATALOG.minLowMalls)) {
-      for (const c of lows) {
-        c.included = false;
-        c.reason = `저가 아웃라이어 (중앙값 ${med.toLocaleString("ko-KR")}원의 ${CATALOG.lowOutlierRatio * 100}% 미만)`;
-      }
-    }
-  }
+  // (저가 아웃라이어 컷은 제거됨 — 실제 시장 최저가를 신뢰. 규격 불일치/옵션묶음 필터만으로 노이즈 차단)
 
-  // 3) 그룹 빌드
+  // 2) 그룹 빌드
   const byKey = new Map<string, ClassifiedListing<T>[]>();
   for (const c of classified) {
     const arr = byKey.get(c.groupKey) ?? [];

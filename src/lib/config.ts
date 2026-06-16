@@ -1,5 +1,5 @@
 // 중앙 설정 + BUILD_ID (수정마다 올림 — 서버/클라이언트 일치 감지용)
-export const BUILD_ID = "2026.06.11-006";
+export const BUILD_ID = "2026.06.16-001";
 
 // 매칭 신뢰도 게이트 (env로 override)
 export const MATCH_CONFIDENCE_THRESHOLD = Number(
@@ -22,13 +22,6 @@ export const COLLECT = {
 // 알림 임계값
 export const ALERT = {
   priceDropPct: -15, // WoW 시세 급락 경보 임계 (%)
-};
-
-// 다나와식 카탈로그 분류 (catalog.ts)
-export const CATALOG = {
-  lowOutlierRatio: 0.5, // 그룹 중앙값 × 이 비율 미만이면 저가 아웃라이어 후보
-  minLowCluster: 3, // 이 개수 이상 모이면 아웃라이어가 아니라 실제 시장가로 인정
-  minLowMalls: 2, // 저가 클러스터 인정에 필요한 최소 판매처 수
 };
 
 // Claude 모델

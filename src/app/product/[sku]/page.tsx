@@ -42,8 +42,8 @@ function buildGroups(
       bucket: c.bucket,
     });
   }
-  // 신뢰도 게이트 미달 표본도 해당 그룹에 제외 표시로 노출
-  for (const r of rows.filter((x) => !x.counted)) {
+  // 신뢰도 게이트 미달 표본도 해당 그룹에 제외 표시로 노출 (단, 신뢰도 0.0은 완전 미관련 → 숨김)
+  for (const r of rows.filter((x) => !x.counted && x.confidence > 0)) {
     const sig = extractSignature(r.title);
     const bucket = typeBucket(r.product_type);
     push(groupKeyOf(sig, sku.inch), {
@@ -125,7 +125,7 @@ export default async function ProductPage({ params }: { params: Promise<{ sku: s
         <h2 className="mb-1 text-lg font-semibold text-slate-700">수집 표본 — 다나와식 제품 분류</h2>
         <p className="mb-3 text-xs text-slate-400">
           최근 실행 <span className="font-mono">{runId ?? "없음"}</span> · 동일 규격(인치×와트) 그룹끼리 묶고,
-          내 규격 그룹에서만 시세를 계산합니다. 중고·단종·옵션묶음·저가 아웃라이어는 자동 제외.
+          내 규격 그룹에서만 시세를 계산합니다. 중고·단종·옵션묶음·규격 불일치는 자동 제외.
         </p>
         {runId ? (
           <Listings groups={groups} runId={runId} skuId={sku} />
